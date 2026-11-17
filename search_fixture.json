@@ -1,0 +1,22 @@
+{
+    "recipes": [
+        {
+            "title": "Курица с рисом и холодным соусом",
+            "missing_count": 1,
+            "missing_required": ["Лук"],
+            "substitutions": [
+                {
+                    "required_ingredient": "Сметана",
+                    "available_ingredient": "Натуральный йогурт",
+                    "context": "Холодный соус"
+                }
+            ],
+            "ingredients": [
+                {"name": "Куриная грудка", "count": null},
+                {"name": "Рис", "count": null},
+                {"name": "Сметана", "count": null},
+                {"name": "Лук", "count": null}
+            ]
+        }
+    ]
+}
