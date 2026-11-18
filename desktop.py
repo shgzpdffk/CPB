@@ -1,78 +1,280 @@
-import tkinter as tk 
-from tkinter import ttk
 import json
+import sys
 from pathlib import Path
+from html import escape
 
-root = tk.Tk()
-root.title("Че по блюдам")
-root.geometry("850x450")
-form = ttk.Frame(root)
-form.pack(side='left', fill='y')
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QApplication,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+    QStackedWidget
+)
 
-results = ttk.Frame(root)
-results.pack(side='left', fill='both', expand=True, padx=20, pady=20)
-label = ttk.Label(root, text="Какие есть продукты?")
-label.pack(anchor='w', padx=20, pady=(20, 5))
 
-product_input = ttk.Entry(root, width=50)
-product_input.pack(anchor="w", padx=20)
+def create_window():
+    window = QWidget()
+    window.setObjectName("recipeWindow")
+    window.setWindowTitle("Че по блюдам")
+    window.resize(850, 450)
 
-def add_product():
-    product = product_input.get().strip()
-    if product == "":
-        return
-    
-    product_list.insert(tk.END, product)
-    product_input.delete(0, tk.END)
+    # Две колонки: форма слева, карточки справа.
+    layout = QHBoxLayout(window)
+    layout.setContentsMargins(20, 20, 20, 20)
+    layout.setSpacing(20)
 
-def delete_product():
-    selected = product_list.curselection()
-    if not selected:
-        return
+    form = QWidget()
+    form.setObjectName("searchForm")
+    form_layout = QVBoxLayout(form)
+    form_layout.setContentsMargins(0, 0, 0, 0)
+    layout.addWidget(form, 2)
 
-    product_list.delete(selected[0])
+    results = QWidget()
+    results.setObjectName("recipeResults")
+    results_layout = QVBoxLayout(results)
+    results_layout.setContentsMargins(0, 0, 0, 0)
+    results_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+    pages = QStackedWidget()
+    pages.addWidget(results)
+    layout.addWidget(pages, 3)
 
-add_button = ttk.Button(root, text="Добавить", command=add_product)
-add_button.pack(anchor="w", padx=20, pady=(10, 0))
+    details = QWidget()
+    details_layout = QVBoxLayout(details)
+    pages.addWidget(details)
 
-delete_button = ttk.Button(root, text="Удалить", command=delete_product)
-delete_button.pack(anchor="w", padx=20)
+    back_button = QPushButton("Назад к результатам")
+    details_layout.addWidget(back_button)
 
-product_list = tk.Listbox(root, width=50, height=10)
-product_list.pack(anchor="w", padx=20, pady=(10, 0))
+    details_title = QLabel()
+    details_layout.addWidget(details_title)
+    details_layout.addWidget(QLabel("Исходные ингредиенты"))
 
-wish_label = ttk.Label(root, text="Пожелания по блюдам")
-wish_label.pack(anchor="w", padx=20, pady=(20, 5))
+    ingredients_list = QListWidget()
+    details_layout.addWidget(ingredients_list)
 
-wish_input = ttk.Entry(root, width = 35)
-wish_input.pack(anchor="w", padx=20)
+    details_purchases = QLabel()
+    details_purchases.setTextFormat(Qt.TextFormat.PlainText)
+    details_purchases.setWordWrap(True)
+    details_layout.addWidget(details_purchases)
 
-def search_recipes():
-    products = list(product_list.get(0, tk.END))
-    request = {"products": products}
-    wish = wish_input.get().strip()
-    if wish:
-        request["wish"] = wish
+    details_substitutions = QLabel()
+    details_substitutions.setWordWrap(True)
+    details_layout.addWidget(details_substitutions)
+    details_layout.addWidget(QLabel("Готовка"))
 
-    print(request)
+    steps_label = QLabel()
+    steps_label.setTextFormat(Qt.TextFormat.PlainText)
+    steps_label.setWordWrap(True)
+    details_layout.addWidget(steps_label)
 
-    fixture_path = Path(__file__).with_name("search_fixture.json")
+    source_link = QLabel()
+    source_link.setTextFormat(Qt.TextFormat.RichText)
+    source_link.setOpenExternalLinks(True)
+    details_layout.addWidget(source_link)
 
-    with fixture_path.open(encoding="utf-8") as f:
-        response = json.load(f)
+    back_button.clicked.connect(lambda: pages.setCurrentWidget(results))
 
-    for widget in results.winfo_children():
-        widget.destroy()
+    product_input = QLineEdit()
+    product_input.setObjectName("productInput")
+    add_button = QPushButton("Добавить")
+    delete_button = QPushButton("Удалить")
+    product_list = QListWidget()
+    product_list.setObjectName("productList")
+    wish_input = QLineEdit()
+    wish_input.setObjectName("wishInput")
+    search_button = QPushButton("Найти рецепты")
+    search_button.setObjectName("searchButton")
 
-    for recipe in response["recipes"]:
-        card = ttk.LabelFrame(results, text=recipe["title"])
-        card.pack(fill='x', pady=(0, 8))
+    form_layout.addWidget(QLabel("Какие есть продукты?"))
+    form_layout.addWidget(product_input)
+    form_layout.addWidget(add_button)
+    form_layout.addWidget(delete_button)
+    form_layout.addWidget(product_list)
+    form_layout.addWidget(QLabel("Пожелания по блюдам"))
+    form_layout.addWidget(wish_input)
+    form_layout.addWidget(search_button)
+
+    known_products = (
+    "натуральный йогурт",
+    "куриная грудка",
+    "рис",
+    "лук",
+    "яйца",
+    "молоко",
+    )
+
+    def split_products(text):
+        products = []
+
+        for part in text.split(","):
+            words = part.split()
+            found_products = []
+
+            while words:
+                for known_name in known_products:
+                    word_count = len(known_name.split())
+                    candidate = " ".join(words[:word_count])
+
+                    if candidate.casefold() == known_name:
+                        found_products.append(candidate)
+                        words = words[word_count:]
+                        break
+                else:
+                    found_products = [part.strip()]
+                    break
+
+            products.extend(found_products)
+
+        return products
+
+    def add_product():
+        already_exists = set()
+        for index in range(product_list.count()):
+            name = product_list.item(index).text()
+            already_exists.add(name.casefold())
+
+        for part in split_products(product_input.text()):
+            name = part.strip()
+            if not name:
+                continue
+
+            key = name.casefold()
+            if key in already_exists:
+                continue
+
+            product_list.addItem(name)
+            already_exists.add(key)
+
+        product_input.clear()
+    def delete_product():
+        selected = product_list.selectedItems()
+        if not selected:
+            return
+
+        product_list.takeItem(product_list.row(selected[0]))
+
+    def format_substitution(substitution):
+        original = substitution["required_ingredient"]
+        replacement = substitution["available_ingredient"]
+        text = f"Замена: {original} → {replacement}"
+
+        context = substitution.get("context")
+        if context:
+            text += f" ({context})"
+
+        return text
+
+    def format_purchases(recipe):
+        count = recipe["missing_count"]
+        if count == 0:
+            return "Докупать ничего не нужно"
 
         names = ', '.join(recipe["missing_required"])
-        text = f"Докупить: {recipe['missing_count']} - {names}"
-        purchases = ttk.Label(card, text=text)
-        purchases.pack(anchor="w", padx=10, pady=8)
-search_button = ttk.Button(root, text="Найти рецепты", command=search_recipes)
-search_button.pack(anchor="w", padx=20, pady=(10, 0))
+        return f"Докупить: {count} - {names}"
+    
+    def open_recipe(recipe):
+        details_title.setText(recipe["title"])
+        ingredients_list.clear()
 
-root.mainloop()
+        for ingredient in recipe["ingredients"]:
+            ingredients_list.addItem(ingredient["name"])
+
+        substitution_lines = []
+        for substitution in recipe["substitutions"]:
+            substitution_lines.append(format_substitution(substitution))
+
+        details_substitutions.setText("\n".join(substitution_lines))
+        details_purchases.setText(format_purchases(recipe))
+        details_substitutions.setVisible(bool(substitution_lines))
+
+        step_lines = []
+
+        for number, step in enumerate(recipe["steps"], start=1):
+            step_lines.append(f"{number}. {step}")
+
+        steps_label.setText("\n".join(step_lines))
+        url = escape(recipe["source_url"], quote=True)
+        source_link.setText(f'<a href="{url}">Оригинальный рецепт</a>')
+        pages.setCurrentWidget(details)
+
+    def search_recipes():
+        products = []
+        for index in range(product_list.count()):
+            products.append(product_list.item(index).text())
+
+        request = {"products": products}
+        wish = wish_input.text().strip()
+        if wish:
+            request["wish"] = wish
+
+        print(request)
+
+        while results_layout.count():
+            widget = results_layout.takeAt(0).widget()
+            widget.hide()
+            widget.deleteLater()
+
+        pages.setCurrentWidget(results)
+
+        fixture_path = Path(__file__).with_name("search_fixture.json")
+        try:
+            with fixture_path.open(encoding="utf-8") as fixture_file:
+                response = json.load(fixture_file)
+        except (OSError, json.JSONDecodeError):
+            results_layout.addWidget(QLabel("Не удалось загрузить рецепты"))
+
+            retry_button = QPushButton("Повторить")
+            retry_button.clicked.connect(search_recipes)
+            results_layout.addWidget(retry_button)
+            return
+
+        recipes = response["recipes"]
+
+        if not recipes:
+            empty_label = QLabel("По этим продуктам и условиям рецептов не найдено")
+            empty_label.setWordWrap(True)
+            results_layout.addWidget(empty_label)
+            pages.setCurrentWidget(results)
+            return
+
+        for recipe in recipes:
+            title = recipe["title"].replace("&", "&&")
+            card = QGroupBox(title)
+            card.setObjectName("recipeCard")
+            card_layout = QVBoxLayout(card)
+
+            purchases = QLabel(format_purchases(recipe))
+            purchases.setTextFormat(Qt.TextFormat.PlainText)
+            purchases.setWordWrap(True)
+            card_layout.addWidget(purchases)
+            for substitution in recipe["substitutions"]:
+                substitution_label = QLabel(format_substitution(substitution))
+                substitution_label.setWordWrap(True)
+                card_layout.addWidget(substitution_label)
+
+            open_button = QPushButton("Открыть рецепт")
+            open_button.clicked.connect(
+                lambda checked=False, selected_recipe=recipe: open_recipe(selected_recipe)
+            )
+            card_layout.addWidget(open_button)
+
+            results_layout.addWidget(card)
+
+    add_button.clicked.connect(add_product)
+    delete_button.clicked.connect(delete_product)
+    search_button.clicked.connect(search_recipes)
+
+    return window
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = create_window()
+    window.show()
+    sys.exit(app.exec())

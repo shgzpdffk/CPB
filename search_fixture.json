@@ -16,7 +16,13 @@
                 {"name": "Рис", "count": null},
                 {"name": "Сметана", "count": null},
                 {"name": "Лук", "count": null}
-            ]
+            ],
+            "steps": [
+                "Свари рис. Обжарь куриную грудку с луком на сковороде.",
+                "Подай курицу с рисом и холодным соусом на основе сметаны."
+            ],
+            "source_url": "https://example.test/recipes/chicken-rice",
+            "explanation": null
         }
     ]
 }
