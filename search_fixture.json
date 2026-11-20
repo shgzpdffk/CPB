@@ -1,6 +1,7 @@
 {
     "recipes": [
         {
+            "id": "fixture-chicken-rice",
             "title": "Курица с рисом и холодным соусом",
             "missing_count": 1,
             "missing_required": ["Лук"],
@@ -21,8 +22,7 @@
                 "Свари рис. Обжарь куриную грудку с луком на сковороде.",
                 "Подай курицу с рисом и холодным соусом на основе сметаны."
             ],
-            "source_url": "https://example.test/recipes/chicken-rice",
-            "explanation": null
+            "source_url": "https://example.test/recipes/chicken-rice"
         }
     ]
 }

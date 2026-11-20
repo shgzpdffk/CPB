@@ -1,0 +1,88 @@
+QWidget {
+    background-color: #f8f6ee;
+    color: #24392e;
+    font-size: 14px;
+}
+
+QPushButton#searchButton {
+    background-color: #235944;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-weight: bold;
+}
+
+QPushButton#searchButton:hover {
+    background-color: #194434;
+}
+
+QPushButton#searchButton:disabled {
+    background-color: #d4ddd6;
+    color: #536359
+}
+
+QLineEdit, QListWidget {
+    background-color: #fffdf7;
+    border: 1px solid #d7ddcf;
+    border-radius: 8px;
+    padding: 8px;
+    selection-background-color: #235944;
+    selection-color: white;
+}
+
+QLineEdit:focus, QListWidget:focus {
+    border-color: #235944;
+}
+
+QListWidget::item {
+    padding: 5px;
+}
+
+QGroupBox#recipeCard {
+    background-color: #fffdf7;
+    border: 1px solid #d7ddcf;
+    border-radius: 12px;
+    margin-top: 12px;
+    padding: 12px;
+}
+
+QGroupBox#recipeCard::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 12px;
+    padding: 0 5px;
+    font-weight: bold;
+}
+
+QGroupBox#recipeCard QLabel {
+    background-color: transparent;
+}
+
+QPushButton {
+    background-color: #fffdf7;
+    color: #235944;
+    border: 1px solid #c8d3c6;
+    border-radius: 8px;
+    padding: 8px 12px;
+}
+
+QPushButton:hover {
+    background-color: #e8eee3;
+}
+
+QPushButton:pressed {
+    background-color: #d8e3d4;
+}
+
+QPushButton:disabled {
+    background-color: #eceee8;
+    color: #747e73;
+    border-color: #d7ddcf;
+}
+
+QLabel#recipeTitle {
+    font-size: 20px;
+    font-weight: bold;
+    background-color: transparent;
+}

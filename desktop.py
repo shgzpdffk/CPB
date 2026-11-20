@@ -2,6 +2,7 @@ import json
 import sys
 from pathlib import Path
 from html import escape
+from search_worker import SearchWorker
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -14,17 +15,40 @@ from PySide6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
     QWidget,
-    QStackedWidget
+    QStackedWidget,
+    QScrollArea,
 )
+
+
+def load_known_products(catalog_path):
+    with catalog_path.open(encoding="utf-8") as catalog_file:
+        catalog = json.load(catalog_file)
+
+    if not isinstance(catalog, dict) or not isinstance(catalog.get("products"), list):
+        raise ValueError("В справочнике products.json нужен список products")
+
+    names = set()
+    for name in catalog["products"]:
+        if not isinstance(name, str):
+            raise ValueError("Названия продуктов в справочнике должны быть строками")
+
+        normalized_name = " ".join(name.split()).casefold()
+        if not normalized_name:
+            raise ValueError("В справочнике найдено пустое название продукта")
+
+        names.add(normalized_name)
+
+    # Сначала распознаём составные названия, затем короткие.
+    return sorted(names, key=lambda name: len(name.split()), reverse=True)
 
 
 def create_window():
     window = QWidget()
     window.setObjectName("recipeWindow")
     window.setWindowTitle("Че по блюдам")
-    window.resize(850, 450)
+    window.resize(950, 600)
+    window.search_worker = None
 
-    # Две колонки: форма слева, карточки справа.
     layout = QHBoxLayout(window)
     layout.setContentsMargins(20, 20, 20, 20)
     layout.setSpacing(20)
@@ -32,6 +56,7 @@ def create_window():
     form = QWidget()
     form.setObjectName("searchForm")
     form_layout = QVBoxLayout(form)
+    form_layout.setSpacing(10)
     form_layout.setContentsMargins(0, 0, 0, 0)
     layout.addWidget(form, 2)
 
@@ -42,7 +67,10 @@ def create_window():
     results_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
     pages = QStackedWidget()
     pages.addWidget(results)
-    layout.addWidget(pages, 3)
+    scroll_area = QScrollArea()
+    scroll_area.setWidgetResizable(True)
+    scroll_area.setWidget(pages)
+    layout.addWidget(scroll_area, 3)
 
     details = QWidget()
     details_layout = QVBoxLayout(details)
@@ -52,6 +80,8 @@ def create_window():
     details_layout.addWidget(back_button)
 
     details_title = QLabel()
+    details_title.setObjectName("recipeTitle")
+    details_title.setWordWrap(True)
     details_layout.addWidget(details_title)
     details_layout.addWidget(QLabel("Исходные ингредиенты"))
 
@@ -100,14 +130,8 @@ def create_window():
     form_layout.addWidget(wish_input)
     form_layout.addWidget(search_button)
 
-    known_products = (
-    "натуральный йогурт",
-    "куриная грудка",
-    "рис",
-    "лук",
-    "яйца",
-    "молоко",
-    )
+    catalog_path = Path(__file__).with_name("products.json")
+    known_products = load_known_products(catalog_path)
 
     def split_products(text):
         products = []
@@ -183,7 +207,13 @@ def create_window():
         ingredients_list.clear()
 
         for ingredient in recipe["ingredients"]:
-            ingredients_list.addItem(ingredient["name"])
+            text = ingredient["name"]
+            count = ingredient.get("count")
+
+            if count:
+                text += f" — {count}"
+
+            ingredients_list.addItem(text)
 
         substitution_lines = []
         for substitution in recipe["substitutions"]:
@@ -204,6 +234,34 @@ def create_window():
         pages.setCurrentWidget(details)
 
     def search_recipes():
+        if not search_button.isEnabled():
+            return
+
+        search_button.setEnabled(False)
+        search_button.setText("Ищем рецепты...")
+        load_recipes()
+
+    def finish_search():
+        window.search_worker.wait()
+        window.search_worker.deleteLater()
+        window.search_worker = None
+
+        search_button.setEnabled(True)
+        search_button.setText("Найти рецепты")
+
+    def show_error(message):
+        print(message)
+        results_layout.addWidget(QLabel("Не удалось загрузить рецепты"))
+
+        retry_button = QPushButton("Повторить")
+        retry_button.clicked.connect(search_recipes)
+        results_layout.addWidget(retry_button)
+
+    def wait_for_search():
+        if window.search_worker is not None:
+            window.search_worker.wait()
+
+    def load_recipes():
         products = []
         for index in range(product_list.count()):
             products.append(product_list.item(index).text())
@@ -213,8 +271,6 @@ def create_window():
         if wish:
             request["wish"] = wish
 
-        print(request)
-
         while results_layout.count():
             widget = results_layout.takeAt(0).widget()
             widget.hide()
@@ -222,20 +278,25 @@ def create_window():
 
         pages.setCurrentWidget(results)
 
-        fixture_path = Path(__file__).with_name("search_fixture.json")
-        try:
-            with fixture_path.open(encoding="utf-8") as fixture_file:
-                response = json.load(fixture_file)
-        except (OSError, json.JSONDecodeError):
-            results_layout.addWidget(QLabel("Не удалось загрузить рецепты"))
+        worker = SearchWorker(request)
+        window.search_worker = worker
 
-            retry_button = QPushButton("Повторить")
-            retry_button.clicked.connect(search_recipes)
-            results_layout.addWidget(retry_button)
-            return
+        worker.succeeded.connect(
+            show_recipes, Qt.ConnectionType.QueuedConnection
+        )
+        worker.failed.connect(
+            show_error, Qt.ConnectionType.QueuedConnection
+        )
+        worker.finished.connect(
+            finish_search, Qt.ConnectionType.QueuedConnection
+        )
 
+        worker.start()
+
+    def show_recipes(response):
         recipes = response["recipes"]
 
+        
         if not recipes:
             empty_label = QLabel("По этим продуктам и условиям рецептов не найдено")
             empty_label.setWordWrap(True)
@@ -247,6 +308,7 @@ def create_window():
             title = recipe["title"].replace("&", "&&")
             card = QGroupBox(title)
             card.setObjectName("recipeCard")
+            card.setProperty("recipeId", recipe["id"])
             card_layout = QVBoxLayout(card)
 
             purchases = QLabel(format_purchases(recipe))
@@ -269,7 +331,9 @@ def create_window():
     add_button.clicked.connect(add_product)
     delete_button.clicked.connect(delete_product)
     search_button.clicked.connect(search_recipes)
-
+    QApplication.instance().aboutToQuit.connect(wait_for_search)
+    style_path = Path(__file__).with_name("style.qss")
+    window.setStyleSheet(style_path.read_text(encoding="utf-8"))
     return window
 
 
