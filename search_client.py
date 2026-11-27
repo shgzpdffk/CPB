@@ -13,7 +13,6 @@ def validate_recipe(recipe):
         "substitutions": list,
         "ingredients": list,
         "steps": list,
-        "source_url": str,
     }
 
     for field, expected_type in field_types.items():

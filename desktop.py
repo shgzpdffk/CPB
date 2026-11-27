@@ -228,8 +228,6 @@ def create_window():
             step_lines.append(f"{number}. {step}")
 
         steps_label.setText("\n".join(step_lines))
-        url = escape(recipe["source_url"], quote=True)
-        source_link.setText(f'<a href="{url}">Оригинальный рецепт</a>')
         pages.setCurrentWidget(details)
 
     def search_recipes():
