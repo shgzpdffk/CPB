@@ -1,7 +1,6 @@
 import json
 import sys
 from pathlib import Path
-from html import escape
 from search_worker import SearchWorker
 
 from PySide6.QtCore import Qt
